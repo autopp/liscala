@@ -38,8 +38,8 @@ class LispTest extends FunSpec {
 
 
     describe("with (if #f 1 2)") {
-      it("returns 1") {
-        lisp.eval("(if #t 1 2)") should be(Right(Num(2)))
+      it("returns 3") {
+        lisp.eval("(if #f 1 2)") should be(Right(Num(2)))
       }
     }
 

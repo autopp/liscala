@@ -111,6 +111,21 @@ class Lisp {
     }
 
     val map = Map[String, SExpr](
+      specialForm("if", 2, true) {(args, env) =>
+        def evalIf(condExpr: SExpr, thenExpr: SExpr, elseExpr: SExpr, env: Env): Result = {
+          evalSExpr(condExpr, env) match {
+            case Left(msg) => Left(msg)
+            case Right(False) => evalSExpr(elseExpr, env)
+            case Right(_) => evalSExpr(thenExpr, env)
+          }
+        }
+
+        args match {
+          case condExpr::thenExpr::elseExpr::Nil => evalIf(condExpr, thenExpr, elseExpr, env)
+          case condExpr::thenExpr::Nil => evalIf(condExpr, thenExpr, NilVal, env)
+          case _ => Left(s"if: required 2 or 3 arguments, but got ${args.length}")
+        }
+      },
       specialForm("quote", 1, false) {(args, _) => Right(args.head)},
       specialForm("lambda", 2, false) {(args, env) =>
         val paramErrorMsg = "lambda: 1st argument must be list of parametor"

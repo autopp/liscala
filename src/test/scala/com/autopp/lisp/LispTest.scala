@@ -6,36 +6,6 @@ class LispTest extends FunSpec {
   val lisp = new Lisp
 
   describe("Lisp#eval") {
-    describe("with (+ 41 1)") {
-      it("returns 42") {
-        lisp.eval("(+ 41 1)") should be(Right(Num(42)))
-      }
-    }
-
-    describe("with (- 44 2)") {
-      it("returns 42") {
-        lisp.eval("(- 44 2)") should be(Right(Num(42)))
-      }
-    }
-
-    describe("with (cons 1 2)") {
-      it("returns (1 . 2)") {
-        lisp.eval("(cons 1 2)") should be(Right(Pair(Num(1), Num(2))))
-      }
-    }
-
-    describe("with (car (cons #t #f))") {
-      it("returns #t") {
-        lisp.eval("(car (cons #t #f))") should be(Right(True))
-      }
-    }
-
-    describe("with (cdr (cons #t #f))") {
-      it("returns #f") {
-        lisp.eval("(cdr (cons #t #f))") should be(Right(False))
-      }
-    }
-
     describe("with (quote x)") {
       it("returns 'x") {
         lisp.eval("(quote x)") should be(Right(Sym("x")))
@@ -76,6 +46,36 @@ class LispTest extends FunSpec {
       it("returns 42") {
         lisp.eval("(define f 42)")
         lisp.eval("f") should be(Right(Num(42)))
+      }
+    }
+
+    describe("with (+ 41 1)") {
+      it("returns 42") {
+        lisp.eval("(+ 41 1)") should be(Right(Num(42)))
+      }
+    }
+
+    describe("with (- 44 2)") {
+      it("returns 42") {
+        lisp.eval("(- 44 2)") should be(Right(Num(42)))
+      }
+    }
+
+    describe("with (cons 1 2)") {
+      it("returns (1 . 2)") {
+        lisp.eval("(cons 1 2)") should be(Right(Pair(Num(1), Num(2))))
+      }
+    }
+
+    describe("with (car (cons #t #f))") {
+      it("returns #t") {
+        lisp.eval("(car (cons #t #f))") should be(Right(True))
+      }
+    }
+
+    describe("with (cdr (cons #t #f))") {
+      it("returns #f") {
+        lisp.eval("(cdr (cons #t #f))") should be(Right(False))
       }
     }
 

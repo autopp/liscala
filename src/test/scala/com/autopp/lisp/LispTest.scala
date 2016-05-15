@@ -67,5 +67,26 @@ class LispTest extends FunSpec {
         lisp.eval("f") should be(Right(Num(42)))
       }
     }
+
+    describe("with (atom 1)") {
+      it("returns true") {
+        lisp.eval("(atom 1)") should be(Right(True))
+      }
+    }
+    describe("with (atom ())") {
+      it("returns true") {
+        lisp.eval("(atom ())") should be(Right(True))
+      }
+    }
+    describe("with (atom (quote (1 . 2)))") {
+      it("returns false") {
+        lisp.eval("(atom (quote (1 . 2)))") should be(Right(False))
+      }
+    }
+    describe("with (atom (quote (1 2 3)))") {
+      it("returns false") {
+        lisp.eval("(atom (quote (1 2 3)))") should be(Right(False))
+      }
+    }
   }
 }

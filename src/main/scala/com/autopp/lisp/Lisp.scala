@@ -169,6 +169,12 @@ class Lisp {
           case _ => Left("define: 1st argument must be symbol")
         }
       },
+      builtinFunc("atom", 1, false) {args =>
+        args.head match {
+          case _: Atom => Right(True)
+          case _ => Right(False)
+        }
+      },
       builtinFunc("+", 0, true) {args =>
         def sum(list: List[SExpr], r: Int): Result = {
           list match {

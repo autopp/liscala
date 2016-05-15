@@ -112,6 +112,31 @@ class Lisp {
 
     val map = Map[String, SExpr](
       specialForm("quote", 1, false) {(args, _) => Right(args.head)},
+      specialForm("lambda", 2, false) {(args, env) =>
+        val paramErrorMsg = "lambda: 1st argument must be list of parametor"
+        args match {
+          case params::body::Nil => {
+            toList(params) match {
+              case Some(paramList) => {
+                def toParamList(list: List[SExpr], buf: List[String]): Option[List[String]] = {
+                  list match {
+                    case Nil => Some(buf.reverse)
+                    case Sym(name)::rest => toParamList(rest, name::buf)
+                    case _ => None
+                  }
+                }
+
+                toParamList(paramList, Nil) match {
+                  case Some(paramList) => Right(UserFunc(None, paramList, env, body))
+                  case None => Left(paramErrorMsg)
+                }
+              }
+              case None => Left(paramErrorMsg)
+            }
+          }
+          case _ => error("BUG: but arity check passing")
+        }
+      },
       builtinFunc("+", 0, true) {args =>
         def sum(list: List[SExpr], r: Int): Result = {
           list match {

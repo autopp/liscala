@@ -1,0 +1,52 @@
+import org.scalatest.FunSpec
+import org.scalatest.Matchers._
+import com.autopp.lisp._
+
+class LispTest extends FunSpec {
+  val lisp = new Lisp
+
+  describe("Lisp#eval") {
+    describe("with (+ 41 1)") {
+      it ("returns 42") {
+        lisp.eval("(+ 41 1)") should be(Num(42))
+      }
+    }
+
+    describe("with (cons 1 2)") {
+      it ("returns (1 . 2)") {
+        lisp.eval("(cons 1 2)") should be(Pair(Num(1), Num(2)))
+      }
+    }
+
+    describe("with (quote x)") {
+      it ("returns 'x") {
+        lisp.eval("(quote x)") should be(Sym("a"))
+      }
+    }
+
+    describe("with (if #t 1 2)") {
+      it ("returns 1") {
+        lisp.eval("(if #t 1 2)") should be(Num(1))
+      }
+    }
+
+
+    describe("with (if #f 1 2)") {
+      it ("returns 1") {
+        lisp.eval("(if #t 1 2)") should be(Num(2))
+      }
+    }
+
+    describe("with (if #f 1)") {
+      it ("returns nil") {
+        lisp.eval("(if #f 1)") should be(NilVal)
+      }
+    }
+
+    describe("with ((lambda (x y) (+ x y)) 41 1)") {
+      it ("returns 41") {
+        lisp.eval("((lambda (x y) (+ x y)) 41 1)") should be(Num(42))
+      }
+    }
+  }
+}

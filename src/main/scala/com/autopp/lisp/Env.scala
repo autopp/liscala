@@ -14,4 +14,8 @@ class Env(val map: Map[String, SExpr], val prev: Option[Env]) {
       }
     }
   }
+
+  def update(name: String, sexpr: SExpr) {
+    map(name) = sexpr
+  }
 }

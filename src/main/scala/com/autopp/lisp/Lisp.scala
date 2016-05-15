@@ -137,6 +137,23 @@ class Lisp {
           case _ => sys.error("BUG: but arity check passing")
         }
       },
+      specialForm("define", 2, false) {(args, env) =>
+        val target = args(0)
+        val sexpr = args(1)
+
+        target match {
+          case Sym(name) => {
+            evalSExpr(sexpr, env) match {
+              case Left(msg) => Left(msg)
+              case Right(value) => {
+                env(name) = value
+                Right(Sym(name))
+              }
+            }
+          }
+          case _ => Left("define: 1st argument must be symbol")
+        }
+      },
       builtinFunc("+", 0, true) {args =>
         def sum(list: List[SExpr], r: Int): Result = {
           list match {

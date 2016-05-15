@@ -12,6 +12,12 @@ class LispTest extends FunSpec {
       }
     }
 
+    describe("with (- 44 2)") {
+      it("returns 42") {
+        lisp.eval("(- 44 2)") should be(Right(Num(42)))
+      }
+    }
+
     describe("with (cons 1 2)") {
       it("returns (1 . 2)") {
         lisp.eval("(cons 1 2)") should be(Right(Pair(Num(1), Num(2))))

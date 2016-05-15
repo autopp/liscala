@@ -134,7 +134,7 @@ class Lisp {
               case None => Left(paramErrorMsg)
             }
           }
-          case _ => error("BUG: but arity check passing")
+          case _ => sys.error("BUG: but arity check passing")
         }
       },
       builtinFunc("+", 0, true) {args =>
@@ -147,6 +147,20 @@ class Lisp {
         }
 
         sum(args, 0)
+      },
+      builtinFunc("-", 1, true) {args =>
+        def sub(list: List[SExpr], r: Int): Result = {
+          list match {
+            case Nil => Right(Num(r))
+            case Num(n)::rest => sub(rest, r - n)
+            case _::_ => Left("+ requires list of number")
+          }
+        }
+
+        args.head match {
+          case Num(n) => sub(args.tail, n)
+          case _ => Left("- requires list of number")
+        }
       }
     )
 

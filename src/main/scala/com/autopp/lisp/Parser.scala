@@ -10,6 +10,7 @@ case object RightParenToken extends Token(")")
 case object DotToken extends Token(".")
 case object TrueToken extends Token("#t")
 case object FalseToken extends Token("#f")
+case object QuoteToken extends Token("'")
 
 class Parser {
   type Rule = (Regex, String => Option[Token])
@@ -38,7 +39,8 @@ class Parser {
       ("[)]".r, (s) => Some(RightParenToken)),
       ("[.]".r, (s) => Some(DotToken)),
       ("#t".r, (s) => Some(TrueToken)),
-      ("#f".r, (s) => Some(FalseToken))
+      ("#f".r, (s) => Some(FalseToken)),
+      ("'".r, (s) => Some(QuoteToken))
     )
     tokenize2(source, rules, Nil)
   }
@@ -78,6 +80,13 @@ class Parser {
     tokens match {
       case Nil => Left("expect '(' or atom, but EOS given")
       case LeftParenToken::rest => parseCons(rest)
+      case QuoteToken::rest => {
+        parseSExpr(rest) match {
+          case Left(msg) => Left(msg)
+          case Right((sexpr, rest)) => Right(Pair(Sym("quote"), Pair(sexpr, NilVal)) -> rest)
+        }
+
+      }
       case _ => parseAtom(tokens)
     }
   }

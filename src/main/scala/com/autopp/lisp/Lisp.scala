@@ -111,6 +111,7 @@ class Lisp {
     }
 
     val map = Map[String, SExpr](
+      specialForm("quote", 1, false) {(args, _) => Right(args.head)},
       builtinFunc("+", 0, true) {args =>
         def sum(list: List[SExpr], r: Int): Result = {
           list match {

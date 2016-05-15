@@ -5,7 +5,7 @@ import scala.collection.mutable.Map
 class Lisp {
   type Result = Lisp.Result
 
-  val env = new Env(Map(), None)
+  val env = initialEnv
   def eval(source: String): Result = {
     new Parser().parse(source) match {
       case Left(msg) => Left(msg)
@@ -100,6 +100,31 @@ class Lisp {
     }
 
     toListWithBuf(sexpr, Nil)
+  }
+
+  def initialEnv: Env = {
+    def specialForm(name: String, arity: Int, varg: Boolean)(body: (List[SExpr], Env) => Result): (String, SpecialForm) = {
+      (name, SpecialForm(name, arity, varg, body))
+    }
+    def builtinFunc(name: String, arity: Int, varg: Boolean)(body: List[SExpr] => Result): (String, BuiltinFunc) = {
+      (name, BuiltinFunc(name, arity, varg, body))
+    }
+
+    val map = Map[String, SExpr](
+      builtinFunc("+", 0, true) {(args) =>
+        def sum(list: List[SExpr], r: Int): Result = {
+          list match {
+            case Nil => Right(Num(r))
+            case Num(n)::rest => sum(rest, n + r)
+            case _::_ => Left("+ requires list of number")
+          }
+        }
+
+        sum(args, 0)
+      }
+    )
+
+    new Env(map, None)
   }
 }
 

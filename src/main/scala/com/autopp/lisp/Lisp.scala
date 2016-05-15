@@ -111,7 +111,7 @@ class Lisp {
     }
 
     val map = Map[String, SExpr](
-      builtinFunc("+", 0, true) {(args) =>
+      builtinFunc("+", 0, true) {args =>
         def sum(list: List[SExpr], r: Int): Result = {
           list match {
             case Nil => Right(Num(r))
@@ -139,9 +139,7 @@ object Lisp {
           System.err.println(s"ERROR: ${msg}")
           sys.exit(1)
         }
-        case Right(sexpr) => {
-          println(sexpr.toString)
-        }
+        case Right(sexpr) => println(sexpr.toString)
       }
     }
   }

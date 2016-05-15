@@ -88,5 +88,17 @@ class LispTest extends FunSpec {
         lisp.eval("(atom (quote (1 2 3)))") should be(Right(False))
       }
     }
+
+    describe("with (= (+ 1 2) (- 5 2) 3)") {
+      it("returns #t") {
+        lisp.eval("(= (+ 1 2) (- 5 2) 3)") should be(Right(True))
+      }
+    }
+
+    describe("with (= (+ 1 2) (+ 5 2) 3)") {
+      it("returns #t") {
+        lisp.eval("(= (+ 1 2) (+ 5 2) 3)") should be(Right(False))
+      }
+    }
   }
 }

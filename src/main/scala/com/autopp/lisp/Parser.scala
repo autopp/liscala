@@ -33,7 +33,7 @@ class Parser {
     val rules = List[Rule](
       ("[ \t\n]".r, (s) => None),
       ("[-+]?[0-9]+".r, (s) => Some(NumToken(s))),
-      ("[-+*/a-zA-Z?]+".r, (s) => Some(SymToken(s))),
+      ("[-+*/a-zA-Z?!=]+".r, (s) => Some(SymToken(s))),
       ("[(]".r, (s) => Some(LeftParenToken)),
       ("[)]".r, (s) => Some(RightParenToken)),
       ("[.]".r, (s) => Some(DotToken)),

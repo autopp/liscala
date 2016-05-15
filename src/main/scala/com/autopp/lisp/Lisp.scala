@@ -175,12 +175,25 @@ class Lisp {
           case _ => Right(False)
         }
       },
+      builtinFunc("=", 2, true) {args =>
+        def evalEqualNum(n: Int, others: List[SExpr]): Result = {
+          others match {
+            case Nil => Right(True)
+            case Num(other)::rest => if (n == other) evalEqualNum(n, rest) else Right(False)
+            case _ => Left("=: required list of number")
+          }
+        }
+        args.head match {
+          case Num(n) => evalEqualNum(n, args.tail)
+          case _ => Left("=: required list of number")
+        }
+      },
       builtinFunc("+", 0, true) {args =>
         def sum(list: List[SExpr], r: Int): Result = {
           list match {
             case Nil => Right(Num(r))
             case Num(n)::rest => sum(rest, n + r)
-            case _::_ => Left("+ requires list of number")
+            case _::_ => Left("+: required list of number")
           }
         }
 
@@ -191,13 +204,13 @@ class Lisp {
           list match {
             case Nil => Right(Num(r))
             case Num(n)::rest => sub(rest, r - n)
-            case _::_ => Left("+ requires list of number")
+            case _::_ => Left("-: required list of number")
           }
         }
 
         args.head match {
           case Num(n) => sub(args.tail, n)
-          case _ => Left("- requires list of number")
+          case _ => Left("-: requires list of number")
         }
       }
     )

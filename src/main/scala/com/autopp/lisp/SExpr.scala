@@ -15,13 +15,13 @@ case object False extends Bool
 
 case class Pair(var car: SExpr, var cdr: SExpr) extends SExpr
 
-abstract class Proc extends SExpr
+abstract class Proc(val arity: Int, val varg: Boolean) extends SExpr
 case class SpecialForm(
-  name: String, arity: Int, varg: Boolean, body: (Seq[SExpr]) => Result) extends Proc
+  name: String, override val arity: Int, override val varg: Boolean, body: (Seq[SExpr], Env) => Result) extends Proc(arity, varg)
 
-abstract class Func extends Proc
+abstract class Func(override val arity: Int, override val varg: Boolean) extends Proc(arity, varg)
 case class UserFunc (
-  name: Option[String], arity: Int, varg: Boolean, body: SExpr, env: Env) extends Func
+  name: Option[String], params: List[String], env: Env, body: SExpr) extends Func(params.length, false)
 
 case class BuiltinFunc (
-  name: Option[String], arity: Int, varg: Boolean, body: (Seq[SExpr]) => Result) extends Func
+  name: Option[String], override val  arity: Int, override val  varg: Boolean, body: (Seq[SExpr]) => Result) extends Func(arity, varg)

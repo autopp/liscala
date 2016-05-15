@@ -24,6 +24,18 @@ class LispTest extends FunSpec {
       }
     }
 
+    describe("with (car (cons #t #f))") {
+      it("returns #t") {
+        lisp.eval("(car (cons #t #f))") should be(Right(True))
+      }
+    }
+
+    describe("with (cdr (cons #t #f))") {
+      it("returns #f") {
+        lisp.eval("(cdr (cons #t #f))") should be(Right(False))
+      }
+    }
+
     describe("with (quote x)") {
       it("returns 'x") {
         lisp.eval("(quote x)") should be(Right(Sym("x")))
@@ -35,7 +47,6 @@ class LispTest extends FunSpec {
         lisp.eval("(if #t 1 2)") should be(Right(Num(1)))
       }
     }
-
 
     describe("with (if #f 1 2)") {
       it("returns 3") {

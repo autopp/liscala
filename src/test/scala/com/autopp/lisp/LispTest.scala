@@ -20,7 +20,7 @@ class LispTest extends FunSpec {
 
     describe("with (quote x)") {
       it("returns 'x") {
-        lisp.eval("(quote x)") should be(Right(Sym("a")))
+        lisp.eval("(quote x)") should be(Right(Sym("x")))
       }
     }
 

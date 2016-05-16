@@ -14,7 +14,7 @@ class LispTest extends FunSpec {
 
     describe("with '(1 2)") {
       it("returns (1 2)") {
-      lisp.eval("'(1 2)") should be(Right(Pair(Num(1), Pair(Num(2), NilVal))))
+        lisp.eval("'(1 2)") should be(Right(Pair(Num(1), Pair(Num(2), NilVal))))
       }
     }
 
@@ -90,16 +90,19 @@ class LispTest extends FunSpec {
         lisp.eval("(atom 1)") should be(Right(True))
       }
     }
+
     describe("with (atom ())") {
       it("returns true") {
         lisp.eval("(atom ())") should be(Right(True))
       }
     }
+
     describe("with (atom (quote (1 . 2)))") {
       it("returns false") {
         lisp.eval("(atom (quote (1 . 2)))") should be(Right(False))
       }
     }
+
     describe("with (atom (quote (1 2 3)))") {
       it("returns false") {
         lisp.eval("(atom (quote (1 2 3)))") should be(Right(False))

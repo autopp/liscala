@@ -3,14 +3,12 @@ package com.autopp.lisp
 import scala.collection.mutable.Map
 
 class Lisp {
+  type MayError[A] = Lisp.MayError[A]
   type Result = Lisp.Result
 
   val env = initialEnv
   def eval(source: String): Result = {
-    new Parser().parse(source) match {
-      case Left(msg) => Left(msg)
-      case Right(sexpr) => evalSExpr(sexpr, env)
-    }
+    new Parser().parse(source).right.flatMap { sexpr => evalSExpr(sexpr, env) }
   }
 
   def evalSExpr(sexpr: SExpr, env: Env): Lisp.Result = {
@@ -23,15 +21,11 @@ class Lisp {
       }
       case atom: Atom => Right(atom)
       case Pair(car, cdr) => {
-        toList(cdr, "function call must be list") match {
-          case Right(list) => {
-            evalSExpr(car, env) match {
-              case l @ Left(_) => l
-              case Right(proc: Proc) => applyProc(proc, list, env)
-              case Right(notProc) => Left(s"invalid application")
-            }
+        toList(cdr, "function call must be list").right.flatMap { list =>
+          evalSExpr(car, env).right.flatMap {
+            case proc: Proc => applyProc(proc, list, env)
+            case _ => Left(s"invalid application")
           }
-          case Left(msg) => Left(msg)
         }
       }
       case _ => Left("BUG: expect atom or list")
@@ -52,22 +46,10 @@ class Lisp {
     proc match {
       case SpecialForm(_, _, _, body) => body(args, env)
       case func: Func => {
-        def evalArgs(args: List[SExpr], env: Env, buf: List[SExpr]): Either[String, List[SExpr]] = {
-          args match {
-            case Nil => Right(buf.reverse)
-            case arg::rest => {
-              evalSExpr(arg, env) match {
-                case Left(msg) => Left(msg)
-                case Right(sexpr) => evalArgs(rest, env, sexpr::buf)
-              }
-            }
-          }
-        }
-
-        evalArgs(args, env, Nil) match {
-          case Left(msg) => Left(msg)
-          case Right(evaluatedArgs) => applyFunc(func, evaluatedArgs)
-        }
+        args.foldLeft[MayError[List[SExpr]]](Right(Nil)) {
+          case (l @ Left(_), _) => l
+          case (Right(list), arg) => evalSExpr(arg, env).right.map{ sexpr => sexpr::list }
+        }.right.flatMap { evaluatedArgs => applyFunc(func, evaluatedArgs.reverse) }
       }
     }
   }
@@ -79,14 +61,6 @@ class Lisp {
         evalSExpr(body, newEnv)
       }
       case BuiltinFunc(_, _, _, body) => body(args)
-    }
-  }
-
-  def isList(sexpr: SExpr): Boolean = {
-    sexpr match {
-      case NilVal => true
-      case Pair(_, cdr) => isList(cdr)
-      case _ => false
     }
   }
 
@@ -113,10 +87,9 @@ class Lisp {
     val map = Map[String, SExpr](
       specialForm("if", 2, true) { (args, env) =>
         def evalIf(condExpr: SExpr, thenExpr: SExpr, elseExpr: SExpr, env: Env): Result = {
-          evalSExpr(condExpr, env) match {
-            case Left(msg) => Left(msg)
-            case Right(False) => evalSExpr(elseExpr, env)
-            case Right(_) => evalSExpr(thenExpr, env)
+          evalSExpr(condExpr, env).right.flatMap {
+            case False => evalSExpr(elseExpr, env)
+            case _ => evalSExpr(thenExpr, env)
           }
         }
 
@@ -144,13 +117,10 @@ class Lisp {
         val sexpr = args(1)
 
         target match {
-          case Sym(name) => {
-            evalSExpr(sexpr, env) match {
-              case Left(msg) => Left(msg)
-              case Right(value) => {
-                env(name) = value
-                Right(Sym(name))
-              }
+          case sym @ Sym(name) => {
+            evalSExpr(sexpr, env).right.map { value =>
+              env(name) = value
+              sym
             }
           }
           case _ => Left("define: 1st argument must be symbol")
@@ -158,27 +128,26 @@ class Lisp {
       },
       specialForm("let", 2, false) {(args, env) =>
         type BindingList = List[(String, SExpr)]
-        def toBindingList(params: SExpr): Either[String, BindingList] = {
-          val errMsg = "1st argument must be list of name and value pair"
-          toList(params, errMsg).right.flatMap { paramList =>
-            paramList.foldRight[Either[String, BindingList]](Right(Nil)) {
-              case (Pair(Sym(name), Pair(sexpr, NilVal)), Right(list)) => Right((name, sexpr)::list)
-              case _ => Left(errMsg)
-            }
-          }
-        }
-
-        def evalBindingList(bindingList: BindingList): Either[String, BindingList] = {
-          bindingList.foldLeft[Either[String, BindingList]](Right(Nil)) {
-            case (Left(msg), _) => Left(msg)
-            case (Right(list), (name, sexpr)) => evalSExpr(sexpr, env).right.map { sexpr => (name, sexpr)::list }
-          }
-        }
+        val errMsg = "1st argument must be list of name and value pair"
 
         val params = args(0)
         val body = args(1)
 
-        toBindingList(params).right.flatMap(evalBindingList).right.flatMap {(bindingList) =>
+        val bindingList = toList(params, errMsg).right.flatMap { paramList =>
+          paramList.foldRight(Right(Nil): MayError[BindingList]) {
+            case (Pair(Sym(name), Pair(sexpr, NilVal)), Right(list)) => Right((name, sexpr)::list)
+            case _ => Left(errMsg)
+          }
+        }
+
+        val evaluatedBindingList = bindingList.right.flatMap {
+          _.foldLeft(Right(Nil): MayError[BindingList]) {
+            case (l @ Left(_), _) => l
+            case (Right(list), (name, sexpr)) => evalSExpr(sexpr, env).right.map { (name, _)::list }
+          }
+        }
+
+        evaluatedBindingList.right.flatMap {(bindingList) =>
           val newEnv = new Env(Map() ++ bindingList, Some(env))
           evalSExpr(body, newEnv)
         }
@@ -215,30 +184,22 @@ class Lisp {
           case _ => Left("=: expected list of number")
         }
       },
-      builtinFunc("+", 0, true) {args =>
-        def sum(list: List[SExpr], r: Int): Result = {
-          list match {
-            case Nil => Right(Num(r))
-            case Num(n)::rest => sum(rest, n + r)
-            case _::_ => Left("+: expected list of number")
-          }
-        }
-
-        sum(args, 0)
+      builtinFunc("+", 0, true) {
+        _.foldLeft[MayError[Int]](Right(0)) {
+          case (Right(r), Num(n)) => Right(r + n)
+          case _ => Left("+: expected list of number")
+        }.right.map(Num(_))
       },
       builtinFunc("-", 1, true) {args =>
-        def sub(list: List[SExpr], r: Int): Result = {
-          list match {
-            case Nil => Right(Num(r))
-            case Num(n)::rest => sub(rest, r - n)
-            case _::_ => Left("-: expected list of number")
+        val errMsg = "-: expected list of number"
+        val r = args.head match {
+          case Num(x) => args.tail.foldLeft[MayError[Int]](Right(x)) {
+            case (Right(r), Num(n)) => Right(r - n)
+            case _ => Left(errMsg)
           }
+          case _ => Left(errMsg)
         }
-
-        args.head match {
-          case Num(n) => sub(args.tail, n)
-          case _ => Left("-: expected list of number")
-        }
+        r.right.map(Num(_))
       }
     )
 

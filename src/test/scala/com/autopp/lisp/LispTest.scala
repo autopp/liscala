@@ -55,6 +55,24 @@ class LispTest extends FunSpec {
       }
     }
 
+    describe("(let ((x 40) (y 2)) (+ x y))") {
+      it("returns 42") {
+        lisp.eval("(let ((x 40) (y 2)) (+ x y))") should be(Right(Num(42)))
+      }
+    }
+
+    describe("(let ((x 44)) (let ((y 2)) (- x y)))") {
+      it("returns 42") {
+        lisp.eval("(let ((x 44)) (let ((y 2)) (- x y)))") should be(Right(Num(42)))
+      }
+    }
+
+    describe("((let ((x 30)) (let ((y 10)) (lambda (z) (+ x y z)))) 2)") {
+      it("returns 42") {
+        lisp.eval("((let ((x 30)) (let ((y 10)) (lambda (z) (+ x y z)))) 2)") should be(Right(Num(42)))
+      }
+    }
+
     describe("with (+ 41 1)") {
       it("returns 42") {
         lisp.eval("(+ 41 1)") should be(Right(Num(42)))

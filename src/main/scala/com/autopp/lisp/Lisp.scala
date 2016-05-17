@@ -169,6 +169,53 @@ class Lisp {
           case _ => Left("define: 1st argument must be symbol")
         }
       },
+      specialForm("let", 2, false) {(args, env) =>
+        type BindingList = List[(String, SExpr)]
+        def toBindingList(paramList: List[SExpr], buf: BindingList): Option[BindingList] = {
+          paramList match {
+            case binding::rest => {
+              binding match {
+                case Pair(Sym(name), Pair(sexpr, NilVal)) => toBindingList(rest, (name, sexpr)::buf)
+                case _ => None
+              }
+            }
+            case Nil => Some(buf.reverse)
+          }
+        }
+
+        def evalBindingList(bindingList: BindingList, env: Env, buf: BindingList): Either[String, BindingList] = {
+          bindingList match {
+            case (name, sexpr)::rest => {
+              evalSExpr(sexpr, env) match {
+                case Left(msg) => Left(msg)
+                case Right(sexpr) => evalBindingList(rest, env, (name, sexpr)::buf)
+              }
+            }
+            case Nil => Right(buf.reverse)
+          }
+        }
+
+        val params = args(0)
+        val body = args(1)
+
+        toList(params) match {
+          case Some(paramList) => {
+            toBindingList(paramList, Nil) match {
+              case Some(bindingList) => {
+                evalBindingList(bindingList, env, Nil) match {
+                  case Left(msg) => Left(msg)
+                  case Right(bindingList) => {
+                    val newEnv = new Env(Map() ++ bindingList, Some(env))
+                    evalSExpr(body, newEnv)
+                  }
+                }
+              }
+              case None => Left("1st argument must be list of name and value pair")
+            }
+          }
+          case None => Left("1st argument must be list of name and value pair")
+        }
+      },
       builtinFunc("atom", 1, false) {args =>
         args.head match {
           case _: Atom => Right(True)

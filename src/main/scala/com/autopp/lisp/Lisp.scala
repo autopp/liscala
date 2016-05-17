@@ -23,15 +23,15 @@ class Lisp {
       }
       case atom: Atom => Right(atom)
       case Pair(car, cdr) => {
-        toList(cdr) match {
-          case Some(list) => {
+        toList(cdr, "function call must be list") match {
+          case Right(list) => {
             evalSExpr(car, env) match {
-              case Left(msg) => Left(msg)
+              case l @ Left(_) => l
               case Right(proc: Proc) => applyProc(proc, list, env)
               case Right(notProc) => Left(s"invalid application")
             }
           }
-          case None => Left("function call must be list")
+          case Left(msg) => Left(msg)
         }
       }
       case _ => Left("BUG: expect atom or list")
@@ -90,12 +90,12 @@ class Lisp {
     }
   }
 
-  def toList(sexpr: SExpr): Option[List[SExpr]] = {
-    def toListWithBuf(sexpr: SExpr, buf: List[SExpr]): Option[List[SExpr]] = {
+  def toList(sexpr: SExpr, errMsg: String): Either[String, List[SExpr]] = {
+    def toListWithBuf(sexpr: SExpr, buf: List[SExpr]): Either[String, List[SExpr]] = {
       sexpr match {
-        case NilVal => Some(buf.reverse)
+        case NilVal => Right(buf.reverse)
         case Pair(car, cdr) => toListWithBuf(cdr, car::buf)
-        case _ => None
+        case _ => Left(errMsg)
       }
     }
 
@@ -111,7 +111,7 @@ class Lisp {
     }
 
     val map = Map[String, SExpr](
-      specialForm("if", 2, true) {(args, env) =>
+      specialForm("if", 2, true) { (args, env) =>
         def evalIf(condExpr: SExpr, thenExpr: SExpr, elseExpr: SExpr, env: Env): Result = {
           evalSExpr(condExpr, env) match {
             case Left(msg) => Left(msg)
@@ -129,27 +129,14 @@ class Lisp {
       specialForm("quote", 1, false) {(args, _) => Right(args.head)},
       specialForm("lambda", 2, false) {(args, env) =>
         val paramErrorMsg = "lambda: 1st argument must be list of parametor"
-        args match {
-          case params::body::Nil => {
-            toList(params) match {
-              case Some(paramList) => {
-                def toParamList(list: List[SExpr], buf: List[String]): Option[List[String]] = {
-                  list match {
-                    case Nil => Some(buf.reverse)
-                    case Sym(name)::rest => toParamList(rest, name::buf)
-                    case _ => None
-                  }
-                }
+        val params = args(0)
+        val body = args(1)
 
-                toParamList(paramList, Nil) match {
-                  case Some(paramList) => Right(UserFunc(None, paramList, env, body))
-                  case None => Left(paramErrorMsg)
-                }
-              }
-              case None => Left(paramErrorMsg)
-            }
-          }
-          case _ => sys.error("BUG: but arity check passing")
+        toList(params, paramErrorMsg).right.flatMap { paramList =>
+          paramList.foldRight[Either[String, List[String]]](Right(Nil)) {
+            case (Sym(name), Right(list)) => Right(name::list)
+            case _ => Left(paramErrorMsg)
+          }.right.map { paramList => UserFunc(None, paramList, env, body) }
         }
       },
       specialForm("define", 2, false) {(args, env) =>
@@ -171,49 +158,29 @@ class Lisp {
       },
       specialForm("let", 2, false) {(args, env) =>
         type BindingList = List[(String, SExpr)]
-        def toBindingList(paramList: List[SExpr], buf: BindingList): Option[BindingList] = {
-          paramList match {
-            case binding::rest => {
-              binding match {
-                case Pair(Sym(name), Pair(sexpr, NilVal)) => toBindingList(rest, (name, sexpr)::buf)
-                case _ => None
-              }
+        def toBindingList(params: SExpr): Either[String, BindingList] = {
+          val errMsg = "1st argument must be list of name and value pair"
+          toList(params, errMsg).right.flatMap { paramList =>
+            paramList.foldRight[Either[String, BindingList]](Right(Nil)) {
+              case (Pair(Sym(name), Pair(sexpr, NilVal)), Right(list)) => Right((name, sexpr)::list)
+              case _ => Left(errMsg)
             }
-            case Nil => Some(buf.reverse)
           }
         }
 
-        def evalBindingList(bindingList: BindingList, env: Env, buf: BindingList): Either[String, BindingList] = {
-          bindingList match {
-            case (name, sexpr)::rest => {
-              evalSExpr(sexpr, env) match {
-                case Left(msg) => Left(msg)
-                case Right(sexpr) => evalBindingList(rest, env, (name, sexpr)::buf)
-              }
-            }
-            case Nil => Right(buf.reverse)
+        def evalBindingList(bindingList: BindingList): Either[String, BindingList] = {
+          bindingList.foldLeft[Either[String, BindingList]](Right(Nil)) {
+            case (Left(msg), _) => Left(msg)
+            case (Right(list), (name, sexpr)) => evalSExpr(sexpr, env).right.map { sexpr => (name, sexpr)::list }
           }
         }
 
         val params = args(0)
         val body = args(1)
 
-        toList(params) match {
-          case Some(paramList) => {
-            toBindingList(paramList, Nil) match {
-              case Some(bindingList) => {
-                evalBindingList(bindingList, env, Nil) match {
-                  case Left(msg) => Left(msg)
-                  case Right(bindingList) => {
-                    val newEnv = new Env(Map() ++ bindingList, Some(env))
-                    evalSExpr(body, newEnv)
-                  }
-                }
-              }
-              case None => Left("1st argument must be list of name and value pair")
-            }
-          }
-          case None => Left("1st argument must be list of name and value pair")
+        toBindingList(params).right.flatMap(evalBindingList).right.flatMap {(bindingList) =>
+          val newEnv = new Env(Map() ++ bindingList, Some(env))
+          evalSExpr(body, newEnv)
         }
       },
       builtinFunc("atom", 1, false) {args =>
@@ -280,7 +247,8 @@ class Lisp {
 }
 
 object Lisp {
-  type Result = Either[String, SExpr]
+  type MayError[A] = Either[String, A]
+  type Result = MayError[SExpr]
 
   def main(args: Array[String]) {
     val lisp = new Lisp

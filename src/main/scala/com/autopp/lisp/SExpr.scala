@@ -2,6 +2,11 @@ package com.autopp.lisp
 
 import com.autopp.lisp.Lisp.Result
 
+sealed abstract class Arity
+case class FixedArity(n: Int) extends Arity
+case class VariableArity(min: Int) extends Arity
+case class RangeArity(min: Int, max: Int) extends Arity
+
 sealed abstract class SExpr
 
 abstract class Atom extends SExpr
@@ -47,15 +52,15 @@ case class Pair(var car: SExpr, var cdr: SExpr) extends SExpr {
   }
 }
 
-abstract class Proc(val arity: Int, val varg: Boolean) extends SExpr
+abstract class Proc(val arity: Arity) extends SExpr
 case class SpecialForm(
-  name: String, override val arity: Int, override val varg: Boolean, body: (List[SExpr], Env) => Result) extends Proc(arity, varg) {
+  name: String, override val arity: Arity, body: (List[SExpr], Env) => Result) extends Proc(arity) {
   override def toString = s"#<syntax ${name}>"
 }
 
-abstract class Func(override val arity: Int, override val varg: Boolean) extends Proc(arity, varg)
+abstract class Func(override val arity: Arity) extends Proc(arity)
 case class UserFunc (
-  name: Option[String], params: List[String], env: Env, body: SExpr) extends Func(params.length, false) {
+  name: Option[String], params: List[String], env: Env, body: SExpr) extends Func(FixedArity(params.length)) {
   override def toString = {
     name match {
       case Some(s) => s"#<lambda ${s}>"
@@ -65,6 +70,6 @@ case class UserFunc (
 }
 
 case class BuiltinFunc (
-  name: String, override val arity: Int, override val varg: Boolean, body: List[SExpr] => Result) extends Func(arity, varg) {
+  name: String, override val arity: Arity, body: List[SExpr] => Result) extends Func(arity) {
   override def toString = s"#<builtin ${name}>"
 }

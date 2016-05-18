@@ -33,18 +33,17 @@ class Lisp {
   }
 
   def applyProc(proc: Proc, args: List[SExpr], env: Env): Result = {
-    val arity = proc.arity
     val argc = args.length
 
-    if (proc.varg) {
-      if (argc < arity) return Left(s"expect ${arity} or more than arguments, but got ${argc}")
-    }
-    else {
-      if (argc != arity) return Left(s"expect ${arity} arguments, but got ${argc}")
+    proc.arity match {
+      case FixedArity(size) if argc != size => return Left(s"expect ${size} arguments, but got ${argc}")
+      case RangeArity(min, max) if argc < min || argc > max => return Left(s"expect ${min} to ${max} arguments, but got ${argc}")
+      case VariableArity(min) if argc < min => return Left(s"expect ${min} arguments, but got ${argc}")
+      case _ => ()
     }
 
     proc match {
-      case SpecialForm(_, _, _, body) => body(args, env)
+      case SpecialForm(_, _, body) => body(args, env)
       case func: Func => {
         args.foldLeft[MayError[List[SExpr]]](Right(Nil)) {
           case (l @ Left(_), _) => l
@@ -60,7 +59,7 @@ class Lisp {
         val newEnv = new Env(Map() ++ params.zip(args).toMap, Some(env))
         evalSExpr(body, newEnv)
       }
-      case BuiltinFunc(_, _, _, body) => body(args)
+      case BuiltinFunc(_, _, body) => body(args)
     }
   }
 
@@ -77,30 +76,26 @@ class Lisp {
   }
 
   def initialEnv: Env = {
-    def specialForm(name: String, arity: Int, varg: Boolean)(body: (List[SExpr], Env) => Result): (String, SpecialForm) = {
-      (name, SpecialForm(name, arity, varg, body))
+    def specialForm(name: String, arity: Arity)(body: (List[SExpr], Env) => Result): (String, SpecialForm) = {
+      (name, SpecialForm(name, arity, body))
     }
-    def builtinFunc(name: String, arity: Int, varg: Boolean)(body: List[SExpr] => Result): (String, BuiltinFunc) = {
-      (name, BuiltinFunc(name, arity, varg, body))
+    def builtinFunc(name: String, arity: Arity)(body: List[SExpr] => Result): (String, BuiltinFunc) = {
+      (name, BuiltinFunc(name, arity, body))
     }
 
     val map = Map[String, SExpr](
-      specialForm("if", 2, true) { (args, env) =>
-        def evalIf(condExpr: SExpr, thenExpr: SExpr, elseExpr: SExpr, env: Env): Result = {
-          evalSExpr(condExpr, env).right.flatMap {
-            case False => evalSExpr(elseExpr, env)
-            case _ => evalSExpr(thenExpr, env)
-          }
-        }
+      specialForm("if", RangeArity(2, 3)) { (args, env) =>
+        val condExpr = args(0)
+        val thenExpr = args(1)
+        val elseExpr = if (args.isDefinedAt(2)) args(2) else NilVal
 
-        args match {
-          case condExpr::thenExpr::elseExpr::Nil => evalIf(condExpr, thenExpr, elseExpr, env)
-          case condExpr::thenExpr::Nil => evalIf(condExpr, thenExpr, NilVal, env)
-          case _ => Left(s"if: required 2 or 3 arguments, but got ${args.length}")
+        evalSExpr(condExpr, env).right.flatMap {
+          case False => evalSExpr(elseExpr, env)
+          case _ => evalSExpr(thenExpr, env)
         }
       },
-      specialForm("quote", 1, false) {(args, _) => Right(args.head)},
-      specialForm("lambda", 2, false) {(args, env) =>
+      specialForm("quote", FixedArity(1)) {(args, _) => Right(args.head)},
+      specialForm("lambda", FixedArity(2)) {(args, env) =>
         val paramErrorMsg = "lambda: 1st argument must be list of parametor"
         val params = args(0)
         val body = args(1)
@@ -112,7 +107,7 @@ class Lisp {
           }.right.map { paramList => UserFunc(None, paramList, env, body) }
         }
       },
-      specialForm("define", 2, false) {(args, env) =>
+      specialForm("define", FixedArity(2)) {(args, env) =>
         val target = args(0)
         val sexpr = args(1)
 
@@ -126,7 +121,7 @@ class Lisp {
           case _ => Left("define: 1st argument must be symbol")
         }
       },
-      specialForm("let", 2, false) {(args, env) =>
+      specialForm("let", FixedArity(2)) {(args, env) =>
         type BindingList = List[(String, SExpr)]
         val errMsg = "1st argument must be list of name and value pair"
 
@@ -152,26 +147,26 @@ class Lisp {
           evalSExpr(body, newEnv)
         }
       },
-      builtinFunc("atom", 1, false) {args =>
+      builtinFunc("atom", FixedArity(1)) {args =>
         args.head match {
           case _: Atom => Right(True)
           case _ => Right(False)
         }
       },
-      builtinFunc("cons", 2, false) {args => Right(Pair(args(0), args(1)))},
-      builtinFunc("car", 1, false) {args =>
+      builtinFunc("cons", FixedArity(2)) {args => Right(Pair(args(0), args(1)))},
+      builtinFunc("car", FixedArity(1)) {args =>
         args.head match {
           case Pair(car, _) => Right(car)
           case _ => Left("car: expected pair")
         }
       },
-      builtinFunc("cdr", 1, false) {args =>
+      builtinFunc("cdr", FixedArity(1)) {args =>
         args.head match {
           case Pair(_, cdr) => Right(cdr)
           case _ => Left("cdr: expected pair")
         }
       },
-      builtinFunc("=", 2, true) {args =>
+      builtinFunc("=", VariableArity(2)) {args =>
         def evalEqualNum(n: Int, others: List[SExpr]): Result = {
           others match {
             case Nil => Right(True)
@@ -184,13 +179,13 @@ class Lisp {
           case _ => Left("=: expected list of number")
         }
       },
-      builtinFunc("+", 0, true) {
+      builtinFunc("+", VariableArity(0)) {
         _.foldLeft[MayError[Int]](Right(0)) {
           case (Right(r), Num(n)) => Right(r + n)
           case _ => Left("+: expected list of number")
         }.right.map(Num(_))
       },
-      builtinFunc("-", 1, true) {args =>
+      builtinFunc("-", VariableArity(1)) {args =>
         val errMsg = "-: expected list of number"
         val r = args.head match {
           case Num(x) => args.tail.foldLeft[MayError[Int]](Right(x)) {

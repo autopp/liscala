@@ -64,8 +64,8 @@ class Lisp {
     }
   }
 
-  def toList(sexpr: SExpr, errMsg: String): Either[String, List[SExpr]] = {
-    def toListWithBuf(sexpr: SExpr, buf: List[SExpr]): Either[String, List[SExpr]] = {
+  def toList(sexpr: SExpr, errMsg: String): MayError[List[SExpr]] = {
+    def toListWithBuf(sexpr: SExpr, buf: List[SExpr]): MayError[List[SExpr]] = {
       sexpr match {
         case NilVal => Right(buf.reverse)
         case Pair(car, cdr) => toListWithBuf(cdr, car::buf)
@@ -106,7 +106,7 @@ class Lisp {
         val body = args(1)
 
         toList(params, paramErrorMsg).right.flatMap { paramList =>
-          paramList.foldRight[Either[String, List[String]]](Right(Nil)) {
+          paramList.foldRight[MayError[List[String]]](Right(Nil)) {
             case (Sym(name), Right(list)) => Right(name::list)
             case _ => Left(paramErrorMsg)
           }.right.map { paramList => UserFunc(None, paramList, env, body) }

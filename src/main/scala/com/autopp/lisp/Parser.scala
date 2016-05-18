@@ -14,18 +14,15 @@ case object QuoteToken extends Token("'")
 
 class Parser {
   type Rule = (Regex, String => Option[Token])
-  type TokenizeResult = Either[String, List[Token]]
-  type ParseResult = Either[String, (SExpr, List[Token])]
+  type MayError[A] = Lisp.MayError[A]
+  type TokenizeResult = MayError[List[Token]]
+  type ParseResult = MayError[(SExpr, List[Token])]
 
-  def parse(source: String): Either[String, SExpr] = {
-    tokenize(source) match {
-      case Left(msg) => Left(msg)
-      case Right(tokens) => {
-        parseSExpr(tokens) match {
-          case Left(msg) => Left(msg)
-          case Right((sexpr, token::_)) => Left(s"expect EOS, but given ${token.contents}")
-          case Right((sexpr, Nil)) => Right(sexpr)
-        }
+  def parse(source: String): MayError[SExpr] = {
+    tokenize(source).right.flatMap { tokens =>
+      parseSExpr(tokens).right.flatMap {
+        case (sexpr, token::_) => Left(s"expect EOS, but given ${token.contents}")
+        case (sexpr, Nil) => Right(sexpr)
       }
     }
   }
@@ -49,14 +46,13 @@ class Parser {
     if (source.isEmpty) {
       Right(buf.reverse)
     } else {
-      tokenize3(source, rules, buf) match {
-        case Left(msg) => Left(msg)
-        case Right((restString, buf)) => tokenize2(restString, rules, buf)
+      tokenize3(source, rules, buf).right.flatMap {
+        case (restString, buf) => tokenize2(restString, rules, buf)
       }
     }
   }
 
-  def tokenize3(source: String, rules: List[Rule], buf: List[Token]): Either[String, (String, List[Token])] = {
+  def tokenize3(source: String, rules: List[Rule], buf: List[Token]): MayError[(String, List[Token])] = {
     rules match {
       case Nil => {
         Left(s"unreconized charactor: '${source.head}'")
@@ -67,8 +63,8 @@ class Parser {
           case Some(matched) => {
             val restString = source.drop(matched.length)
             converter(matched) match {
-              case Some(token) => Right((restString, token::buf))
               case None => Right((restString, buf))
+              case Some(token) => Right((restString, token::buf))
             }
           }
         }
@@ -81,11 +77,9 @@ class Parser {
       case Nil => Left("expect '(' or atom, but EOS given")
       case LeftParenToken::rest => parseCons(rest)
       case QuoteToken::rest => {
-        parseSExpr(rest) match {
-          case Left(msg) => Left(msg)
-          case Right((sexpr, rest)) => Right(Pair(Sym("quote"), Pair(sexpr, NilVal)) -> rest)
+        parseSExpr(rest).right.map {
+          case (sexpr, rest) => (Pair(Sym("quote"), Pair(sexpr, NilVal)), rest)
         }
-
       }
       case _ => parseAtom(tokens)
     }
@@ -106,14 +100,8 @@ class Parser {
     tokens match {
       case RightParenToken::rest => Right(NilVal -> rest)
       case _ => {
-        parseSExpr(tokens) match {
-          case Left(msg) => Left(msg)
-          case Right((car, tail)) => {
-            parseConsTail(tail) match {
-              case Left(msg) => Left(msg)
-              case Right((cdr, rest)) => Right(Pair(car, cdr) -> rest)
-            }
-          }
+        parseSExpr(tokens).right.flatMap {
+          case (car, tail) => parseConsTail(tail).right.map { case (cdr, rest) => (Pair(car, cdr), rest) }
         }
       }
     }
@@ -123,20 +111,15 @@ class Parser {
     tokens match {
       case Nil => Left("expect sexpr, dot, or ), but EOS given")
       case RightParenToken::rest => Right(NilVal -> rest)
-      case DotToken::afterDot => {
-        parseSExpr(afterDot) match {
-          case Left(msg) => Left(msg)
-          case Right((sexpr, RightParenToken::rest)) => Right(sexpr -> rest)
-          case Right((_, _)) => Left("expect ), but EOS given")
-        }
+      case DotToken::afterDot => parseSExpr(afterDot).right.flatMap {
+        case (sexpr, RightParenToken::rest) => Right(sexpr -> rest)
+        case _ => Left("expect ), but EOS given")
       }
       case _ => {
-        parseSExpr(tokens) match {
-          case Left(msg) => Left(msg)
-          case Right((car, rest)) => {
-            parseConsTail(rest) match {
-              case Left(msg) => Left(msg)
-              case Right((cdr, rest)) => Right(Pair(car, cdr) -> rest)
+        parseSExpr(tokens).right.flatMap {
+          case (car, rest) => {
+            parseConsTail(rest).right.map {
+              case (cdr, rest) => (Pair(car, cdr), rest)
             }
           }
         }

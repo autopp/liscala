@@ -56,7 +56,7 @@ class Lisp {
   def applyFunc(func: Func, args: List[SExpr]): Result = {
     func match {
       case UserFunc(_, params, env, body) => {
-        val newEnv = new Env(Map() ++ params.zip(args).toMap, Some(env))
+        val newEnv = new Env(params.zip(args).toMap, Some(env))
         evalSExpr(body, newEnv)
       }
       case BuiltinFunc(_, _, body) => body(args)
@@ -143,7 +143,7 @@ class Lisp {
         }
 
         evaluatedBindingList.right.flatMap {(bindingList) =>
-          val newEnv = new Env(Map() ++ bindingList, Some(env))
+          val newEnv = new Env(bindingList.toMap, Some(env))
           evalSExpr(body, newEnv)
         }
       },

@@ -24,7 +24,7 @@ class Lisp {
         toList(cdr, "function call must be list").right.flatMap { list =>
           evalSExpr(car, env).right.flatMap {
             case proc: Proc => applyProc(proc, list, env)
-            case _ => Left(s"invalid application")
+            case notProc => Left(s"invalid application: ${notProc}")
           }
         }
       }
@@ -118,7 +118,21 @@ class Lisp {
               sym
             }
           }
-          case _ => Left("define: 1st argument must be symbol")
+          case _ => {
+            val errMsg = "define: 1st argument must be symbol or list of symbol"
+            toList(target, errMsg).right.flatMap {
+              case Sym(name)::rest => {
+                rest.foldRight(Right(Nil): MayError[List[String]]) {
+                  case (Sym(param), Right(buf)) => Right(param::buf)
+                  case _ => Left(errMsg)
+                }.right.map { args =>
+                  env(name) = UserFunc(Some(name), args, env, sexpr)
+                  Sym(name)
+                }
+              }
+              case _ => Left(errMsg)
+            }
+          }
         }
       },
       specialForm("let", FixedArity(2)) {(args, env) =>
